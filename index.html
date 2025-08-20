@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>llega a la puerta segura - 20 Niveles</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+    h1 { margin: 10px; color: yellow; }
+    canvas {
+      background: #222;
+      display: block;
+      margin: auto;
+      border: 3px solid white;
+    }
+    .controls { margin-top: 20px; text-align: center; }
+    .controls button {
+      width: 60px; height: 60px; margin: 5px;
+      font-size: 24px; border-radius: 10px; border: none;
+      background: #444; color: white; cursor: pointer;
+    }
+    .controls button:active { background: #888; }
+    #ranking {
+      margin-top: 20px; padding: 10px;
+      border: 2px solid yellow; display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ llega a la puerta segura - 20 Niveles</h1>
+  <h2 id="nivel">Nivel: 1</h2>
+  <canvas id="gameCanvas" width="900" height="600"></canvas>
+
+  <div class="controls">
+    <div><button id="btnUp">⬆️</button></div>
+    <div>
+      <button id="btnLeft">⬅️</button>
+      <button id="btnDown">⬇️</button>
+      <button id="btnRight">➡️</button>
+    </div>
+  </div>
+
+  <div id="ranking">
+    <h3>🏆 Ranking de Tiempos</h3>
+    <p id="tiempoActual">Tiempo actual: 0s</p>
+    <p id="mejorTiempo">Mejor tiempo: -</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const CW = canvas.width, CH = canvas.height;
+
+    // 🎯 Base segura (zona verde)
+    const START_BASE = { x: 10, y: 10, w: 160, h: 130 };
+    const BASE_BUFFER = 25; // margen extra alrededor de la base para spawns
+
+    const player = { x: START_BASE.x + 10, y: START_BASE.y + 10, size: 25, color: "cyan", speed: 4 };
+    const goal = { x: CW - 50, y: CH - 50, size: 35, color: "red" };
+
+    let level = 1;
+    let keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    let walls = [];
+    let enemies = [];
+
+    // ⏱️ tiempo / ranking
+    let startTime = Date.now();
+    let tiempoActual = 0;
+    let mejorTiempo = localStorage.getItem("mejorTiempo") || null;
+
+    // 🛡️ invulnerabilidad al iniciar nivel
+    let invulnerableUntil = 0;
+
+    function actualizarTiempo() {
+      tiempoActual = Math.floor((Date.now() - startTime) / 1000);
+      document.getElementById("tiempoActual").textContent = "Tiempo actual: " + tiempoActual + "s";
+      if (mejorTiempo) {
+        document.getElementById("mejorTiempo").textContent = "Mejor tiempo: " + mejorTiempo + "s";
+      }
+    }
+    setInterval(actualizarTiempo, 1000);
+
+    // Utilidades
+    function rect(x,y,w,h){ return {x,y,w,h}; }
+    function expand(r, pad){
+      return { x: r.x - pad, y: r.y - pad, w: r.w + pad*2, h: r.h + pad*2 };
+    }
+    function intersects(a,b){
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+    function aabb(obj){
+      return { x: obj.x, y: obj.y, w: obj.w || obj.size, h: obj.h || obj.size };
+    }
+
+    function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+    // Evitar que spawneen cosas dentro de la base
+    const BASE_NO_SPAWN = expand(START_BASE, BASE_BUFFER);
+
+    // 📦 Generador de niveles progresivo con paredes separadas y fuera de la base
+    const levels = [];
+    for (let i = 1; i <= 20; i++) {
+      const wallsLv = [];
+      const enemiesLv = [];
+
+      // densidad y tamaños según nivel
+      const wallCount = Math.min(6 + i * 2, 40);
+      const lenMin = i < 6 ? 50 : i < 12 ? 80 : 120;
+      const lenMax = i < 6 ? 100 : i < 12 ? 140 : 200;
+
+      let attempts = 0;
+      while (wallsLv.length < wallCount && attempts < wallCount * 20) {
+        attempts++;
+        const horizontal = Math.random() < 0.5;
+        const len = randomInt(lenMin, lenMax);
+        const w = horizontal ? len : 20;
+        const h = horizontal ? 20 : len;
+
+        // mantener paredes lejos del borde
+        const x = randomInt(40, CW - w - 40);
+        const y = randomInt(40, CH - h - 40);
+        const candidate = rect(x,y,w,h);
+
+        // Evitar base y dejar un pequeño gap entre paredes
+        const GAP = 14;
+        const candidateGap = expand(candidate, GAP);
+
+        if (intersects(candidateGap, BASE_NO_SPAWN)) continue;
+
+        let overlapped = false;
+        for (const wv of wallsLv) {
+          if (intersects(candidateGap, expand(wv, 0))) { overlapped = true; break; }
+        }
+        // no bloquees la meta explícitamente
+        if (!overlapped && intersects(candidateGap, expand(aabb(goal), 12))) overlapped = true;
+
+        if (!overlapped) wallsLv.push(candidate);
+      }
+
+      // enemigos (rebote) fuera de la base
+      const enemyCount = Math.min(i, 12);
+      for (let k = 0; k < enemyCount; k++) {
+        let ex, ey;
+        let tries = 0;
+        while (true) {
+          tries++; if (tries > 200) break;
+          const ew = 25, eh = 25;
+          ex = randomInt(40, CW - ew - 40);
+          ey = randomInt(40, CH - eh - 40);
+          const ebox = rect(ex,ey,ew,eh);
+          if (intersects(ebox, BASE_NO_SPAWN)) continue;
+
+          // evita spawnear dentro de una pared
+          let hitWall = false;
+          for (const wv of wallsLv) if (intersects(ebox, wv)) { hitWall = true; break; }
+          if (!hitWall) break;
+        }
+        enemiesLv.push({
+          x: ex, y: ey, w: 25, h: 25,
+          dx: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5),
+          dy: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5)
+        });
+      }
+
+      levels.push({ walls: wallsLv, enemies: enemiesLv });
+    }
+
+    function loadLevel(lv) {
+      document.getElementById("nivel").textContent = "Nivel: " + lv;
+      walls = levels[lv-1].walls.map(w => ({...w}));
+      enemies = levels[lv-1].enemies.map(e => ({...e}));
+      // respawn dentro de la base
+      player.x = START_BASE.x + 10;
+      player.y = START_BASE.y + 10;
+
+      // 🛡️ invulnerable 1.5s
+      invulnerableUntil = Date.now() + 1500;
+      // reset controles para evitar “tecla pegada”
+      keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    }
+
+    function drawRect(obj, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(obj.x, obj.y, obj.w || obj.size, obj.h || obj.size);
+    }
+
+    function checkCollision(a, b) {
+      return a.x < b.x + (b.w || b.size) &&
+             a.x + (a.w || a.size) > b.x &&
+             a.y < b.y + (b.h || b.size) &&
+             a.y + (a.h || a.size) > b.y;
+    }
+
+    function resetGame() {
+      level = 1;
+      loadLevel(level);
+      startTime = Date.now();
+      keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    }
+
+    function update() {
+      // movimiento jugador
+      let nx = player.x, ny = player.y;
+      if (keys.ArrowUp) ny -= player.speed;
+      if (keys.ArrowDown) ny += player.speed;
+      if (keys.ArrowLeft) nx -= player.speed;
+      if (keys.ArrowRight) nx += player.speed;
+
+      // límites
+      nx = Math.max(0, Math.min(CW - player.size, nx));
+      ny = Math.max(0, Math.min(CH - player.size, ny));
+
+      // colisión con paredes (bloqueo)
+      const nextBox = { x: nx, y: ny, w: player.size, h: player.size };
+      let blocked = false;
+      for (const w of walls) { if (intersects(nextBox, w)) { blocked = true; break; } }
+      if (!blocked) { player.x = nx; player.y = ny; }
+
+      // enemigos
+      for (const e of enemies) {
+        e.x += e.dx; e.y += e.dy;
+
+        // rebote contra bordes
+        if (e.x <= 0 || e.x + e.w >= CW) e.dx *= -1;
+        if (e.y <= 0 || e.y + e.h >= CH) e.dy *= -1;
+
+        // rebote contra paredes del laberinto
+        const ebox = rect(e.x, e.y, e.w, e.h);
+        for (const w of walls) {
+          if (intersects(ebox, w)) {
+            // decide eje de rebote según penetración
+            const overlapX = Math.min(ebox.x + ebox.w, w.x + w.w) - Math.max(ebox.x, w.x);
+            const overlapY = Math.min(ebox.y + ebox.h, w.y + w.h) - Math.max(ebox.y, w.y);
+            if (overlapX < overlapY) { e.dx *= -1; e.x += Math.sign(e.dx) * 2; }
+            else { e.dy *= -1; e.y += Math.sign(e.dy) * 2; }
+          }
+        }
+
+        // 🚫 enemigos no entran a la base: si tocan, rebotan
+        if (intersects(ebox, START_BASE)) {
+          const overlapX = Math.min(ebox.x + ebox.w, START_BASE.x + START_BASE.w) - Math.max(ebox.x, START_BASE.x);
+          const overlapY = Math.min(ebox.y + ebox.h, START_BASE.y + START_BASE.h) - Math.max(ebox.y, START_BASE.y);
+          if (overlapX < overlapY) { e.dx *= -1; e.x += Math.sign(e.dx) * 3; }
+          else { e.dy *= -1; e.y += Math.sign(e.dy) * 3; }
+        }
+
+        // colisión con jugador (si no está invulnerable)
+        const vulnerable = Date.now() >= invulnerableUntil;
+        if (vulnerable && checkCollision(player, e)) {
+          alert("💀 Moriste! Reiniciando desde el Nivel 1...");
+          resetGame();
+          return;
+        }
+      }
+
+      // victoria
+      if (checkCollision(player, goal)) {
+        if (level < levels.length) {
+          level++;
+          loadLevel(level);
+        } else {
+          const tiempoTotal = Math.floor((Date.now() - startTime) / 1000);
+          alert("🎉 ¡Ganaste los 20 niveles! Tiempo total: " + tiempoTotal + "s");
+          if (!mejorTiempo || tiempoTotal < mejorTiempo) {
+            mejorTiempo = tiempoTotal;
+            localStorage.setItem("mejorTiempo", mejorTiempo);
+          }
+          resetGame();
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0,0,CW,CH);
+
+      // dibuja base segura
+      ctx.fillStyle = "rgba(0,255,0,0.12)";
+      ctx.fillRect(START_BASE.x, START_BASE.y, START_BASE.w, START_BASE.h);
+      ctx.strokeStyle = "lime";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(START_BASE.x, START_BASE.y, START_BASE.w, START_BASE.h);
+      ctx.font = "14px Arial";
+      ctx.fillStyle = "lime";
+      ctx.fillText("BASE", START_BASE.x + 8, START_BASE.y + 18);
+
+      // meta y jugador
+      drawRect(goal, goal.color);
+      drawRect(player, player.color);
+
+      // halo de invulnerabilidad
+      if (Date.now() < invulnerableUntil) {
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(player.x - 3, player.y - 3, player.size + 6, player.size + 6);
+      }
+
+      // paredes y enemigos
+      for (const w of walls) drawRect(w, "gray");
+      for (const e of enemies) drawRect(e, "yellow");
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 🎮 Teclado
+    document.addEventListener("keydown", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+    document.addEventListener("keyup",   e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+    // 📱/🖱️ Botones táctiles y mouse
+    function addControl(id, key) {
+      const btn = document.getElementById(id);
+      ["mousedown","touchstart"].forEach(ev => btn.addEventListener(ev, e => { e.preventDefault(); keys[key] = true; }));
+      ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev => btn.addEventListener(ev, e => { e.preventDefault(); keys[key] = false; }));
+    }
+    addControl("btnUp","ArrowUp");
+    addControl("btnDown","ArrowDown");
+    addControl("btnLeft","ArrowLeft");
+    addControl("btnRight","ArrowRight");
+
+    // iniciar
+    function init(){
+      loadLevel(level);
+      startTime = Date.now();
+      gameLoop();
+    }
+    init();
+  </script>
+</body>
+</html>
