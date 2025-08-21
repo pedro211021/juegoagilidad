@@ -1,312 +1,237 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Escape del Laberinto - 20 Niveles</title>
-  <style>
-    body {
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-    }
-    h1 { margin: 10px; color: yellow; }
-    #vidasDisplay {
-      font-size: 24px;
-      margin-bottom: 10px;
-      color: red;
-    }
-    canvas {
-      background: #222;
-      display: block;
-      margin: auto;
-      border: 3px solid white;
-      touch-action: none;
-    }
-    .controls { margin-top: 20px; text-align: center; }
-    .controls button {
-      width: 90px;
-      height: 90px;
-      margin: 10px;
-      font-size: 28px;
-      border-radius: 15px;
-      border: none;
-      background: #444;
-      color: white;
-    }
-    .controls button:active { background: #888; }
-    #joystick {
-      margin: 20px auto;
-      width: 140px;
-      height: 140px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 50%;
-      position: relative;
-      touch-action: none;
-    }
-    #stick {
-      width: 60px;
-      height: 60px;
-      background: #666;
-      border-radius: 50%;
-      position: absolute;
-      left: 40px;
-      top: 40px;
-      transition: 0.1s;
-    }
-    #ranking {
-      margin-top: 20px;
-      padding: 10px;
-      border: 2px solid yellow;
-      display: inline-block;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Escape del Laberinto - 20 Niveles</title>
+<style>
+  body {
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+  }
+  h1 { margin: 10px; color: yellow; }
+  #vidasDisplay {
+    font-size: 24px;
+    margin-bottom: 10px;
+    color: red;
+  }
+  canvas {
+    background: #222;
+    display: block;
+    margin: auto;
+    border: 3px solid white;
+    touch-action: none;
+  }
+  .controls { margin-top: 20px; text-align: center; }
+  .controls button {
+    width: 90px;
+    height: 90px;
+    margin: 10px;
+    font-size: 28px;
+    border-radius: 15px;
+    border: none;
+    background: #444;
+    color: white;
+    touch-action: none;
+  }
+  .controls button:active { background: #888; }
+  #ranking {
+    margin-top: 20px;
+    padding: 10px;
+    border: 2px solid yellow;
+    display: inline-block;
+  }
+</style>
 </head>
 <body>
-  <h1>⚡ Llega a la puerta - 20 Niveles</h1>
-  <div id="vidasDisplay">❤️❤️❤️</div>
-  <h2 id="nivel">Nivel: 1</h2>
-  <canvas id="gameCanvas" width="900" height="600"></canvas>
+<h1>⚡ Llega a la puerta - 20 Niveles</h1>
+<div id="vidasDisplay">❤️❤️❤️</div>
+<h2 id="nivel">Nivel: 1</h2>
+<canvas id="gameCanvas" width="900" height="600"></canvas>
 
-  <div class="controls">
-    <div><button id="btnUp">⬆️</button></div>
-    <div>
-      <button id="btnLeft">⬅️</button>
-      <button id="btnDown">⬇️</button>
-      <button id="btnRight">➡️</button>
-    </div>
+<div class="controls">
+  <div><button id="btnUp">⬆️</button></div>
+  <div>
+    <button id="btnLeft">⬅️</button>
+    <button id="btnDown">⬇️</button>
+    <button id="btnRight">➡️</button>
   </div>
+</div>
 
-  <div id="joystick"><div id="stick"></div></div>
+<div id="ranking">
+  <h3>🏆 Ranking de Tiempos</h3>
+  <p id="tiempoActual">Tiempo actual: 0s</p>
+  <p id="mejorTiempo">Mejor tiempo: -</p>
+</div>
 
-  <div id="ranking">
-    <h3>🏆 Ranking de Tiempos</h3>
-    <p id="tiempoActual">Tiempo actual: 0s</p>
-    <p id="mejorTiempo">Mejor tiempo: -</p>
-  </div>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+const player = { x: 50, y: 50, size: 25, color: "cyan", speed: 4 };
+const goal = { x: 850, y: 550, size: 35, color: "red" };
+const base = { x: 20, y: 20, w: 120, h: 120, color: "green" };
 
-    const player = { x: 50, y: 50, size: 25, color: "cyan", speed: 4 };
-    const goal = { x: 850, y: 550, size: 35, color: "red" };
-    const base = { x: 20, y: 20, w: 120, h: 120, color: "green" };
+let level = 1;
+let lives = 3;
+let keys = { w:false, a:false, s:false, d:false };
+let walls = [];
+let enemies = [];
 
-    let level = 1;
-    let lives = 3;
-    let keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-    let walls = [];
-    let enemies = [];
+let startTime = Date.now();
+let tiempoActual = 0;
+let mejorTiempo = localStorage.getItem("mejorTiempo") || null;
 
-    let startTime = Date.now();
-    let tiempoActual = 0;
-    let mejorTiempo = localStorage.getItem("mejorTiempo") || null;
+// 🎵 sonidos
+const soundLose = new Audio("https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg");
+const soundWin = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+const soundFinish = new Audio("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
+const soundBump = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
 
-    const soundLose = new Audio("https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg");
-    const soundWin = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
-    const soundFinish = new Audio("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
-    const soundBump = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+function playSound(snd){ snd.currentTime=0; snd.play(); }
+function resetKeys(){ keys.w=false; keys.a=false; keys.s=false; keys.d=false; }
 
-    function playSound(snd) { snd.currentTime = 0; snd.play(); }
+function actualizarTiempo(){
+  tiempoActual = Math.floor((Date.now()-startTime)/1000);
+  document.getElementById("tiempoActual").textContent = "Tiempo actual: "+tiempoActual+"s";
+  if(mejorTiempo) document.getElementById("mejorTiempo").textContent = "Mejor tiempo: "+mejorTiempo+"s";
+  document.getElementById("vidasDisplay").textContent = "❤️".repeat(lives)+"🤍".repeat(3-lives);
+}
+setInterval(actualizarTiempo,1000);
 
-    function actualizarTiempo() {
-      tiempoActual = Math.floor((Date.now() - startTime) / 1000);
-      document.getElementById("tiempoActual").textContent = "Tiempo actual: " + tiempoActual + "s";
-      if (mejorTiempo) {
-        document.getElementById("mejorTiempo").textContent = "Mejor tiempo: " + mejorTiempo + "s";
-      }
-      // Mostrar vidas en corazones
-      const hearts = "❤️".repeat(lives) + "🤍".repeat(3 - lives);
-      document.getElementById("vidasDisplay").textContent = hearts;
-    }
-    setInterval(actualizarTiempo, 1000);
-
-    const levels = [];
-    for (let i = 1; i <= 20; i++) {
-      let walls = [];
-      let enemies = [];
-      for (let j = 0; j < i + 2; j++) {
-        walls.push({x: (Math.random()*800)|0, y: (Math.random()*500)|0, w: 20, h: 100});
-      }
-      for (let k = 0; k < i; k++) {
-        enemies.push({
-          x: 200 + (Math.random()*600)|0,
-          y: 200 + (Math.random()*400)|0,
-          w: 25,
-          h: 25,
-          dx: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5),
-          dy: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5)
-        });
-      }
-      levels.push({ walls, enemies });
-    }
-
-    function loadLevel(lv) {
-      document.getElementById("nivel").textContent = "Nivel: " + lv;
-      walls = levels[lv-1].walls;
-      enemies = levels[lv-1].enemies.map(e => ({...e}));
-      player.x = base.x + base.w/2;
-      player.y = base.y + base.h/2;
-    }
-
-    function drawRect(obj, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(obj.x, obj.y, obj.w || obj.size, obj.h || obj.size);
-    }
-
-    function checkCollision(a, b) {
-      return a.x < b.x + (b.w || b.size) &&
-             a.x + (a.w || a.size) > b.x &&
-             a.y < b.y + (b.h || b.size) &&
-             a.y + (a.h || a.size) > b.y;
-    }
-
-    function resetGame() {
-      level = 1; 
-      lives = 3;
-      loadLevel(level);
-      startTime = Date.now();
-    }
-
-    function update() {
-      if (keys.ArrowUp) player.y -= player.speed;
-      if (keys.ArrowDown) player.y += player.speed;
-      if (keys.ArrowLeft) player.x -= player.speed;
-      if (keys.ArrowRight) player.x += player.speed;
-
-      if (player.x < 0) player.x = 0;
-      if (player.y < 0) player.y = 0;
-      if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
-      if (player.y + player.size > canvas.height) player.y = canvas.height - player.size;
-
-      for (let w of walls) {
-        if (checkCollision(player, w)) {
-          if (keys.ArrowUp) player.y += player.speed;
-          if (keys.ArrowDown) player.y -= player.speed;
-          if (keys.ArrowLeft) player.x += player.speed;
-          if (keys.ArrowRight) player.x -= player.speed;
-          playSound(soundBump);
-        }
-      }
-
-      // Movimiento enemigos + rebote en base
-      for (let e of enemies) {
-        const prevX = e.x;
-        const prevY = e.y;
-        e.x += e.dx;
-        e.y += e.dy;
-
-        if (e.x <= 0 || e.x + e.w >= canvas.width) e.dx *= -1;
-        if (e.y <= 0 || e.y + e.h >= canvas.height) e.dy *= -1;
-
-        if (checkCollision(e, base)) {
-          if (prevX + e.w <= base.x) e.dx = -Math.abs(e.dx);
-          if (prevX >= base.x + base.w) e.dx = Math.abs(e.dx);
-          if (prevY + e.h <= base.y) e.dy = -Math.abs(e.dy);
-          if (prevY >= base.y + base.h) e.dy = Math.abs(e.dy);
-
-          while (checkCollision(e, base)) {
-            e.x += e.dx * 0.1;
-            e.y += e.dy * 0.1;
-          }
-        }
-
-        if (checkCollision(player, e) && !checkCollision(player, base)) {
-          lives--;
-          playSound(soundLose);
-          if (lives <= 0) {
-            alert("💀 Te quedaste sin vidas! Reiniciando desde el Nivel 1...");
-            resetGame();
-            return;
-          } else {
-            alert("💥 Perdiste una vida! Vidas restantes: " + lives);
-            loadLevel(level);
-            return;
-          }
-        }
-      }
-
-      if (checkCollision(player, goal)) {
-        if (level < levels.length) {
-          playSound(soundWin);
-          level++;
-          loadLevel(level);
-        } else {
-          let tiempoTotal = Math.floor((Date.now() - startTime) / 1000);
-          playSound(soundFinish);
-          alert("🎉 ¡Ganaste todos los niveles! Tiempo total: " + tiempoTotal + "s");
-          if (!mejorTiempo || tiempoTotal < mejorTiempo) {
-            mejorTiempo = tiempoTotal;
-            localStorage.setItem("mejorTiempo", mejorTiempo);
-          }
-          resetGame();
-        }
-      }
-    }
-
-    function draw() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawRect(base, base.color);
-      drawRect(goal, goal.color);
-      drawRect(player, player.color);
-      for (let w of walls) drawRect(w, "gray");
-      for (let e of enemies) drawRect(e, "yellow");
-    }
-
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-
-    document.addEventListener("keydown", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
-    document.addEventListener("keyup", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
-
-    function addTouchControl(id, key) {
-      const btn = document.getElementById(id);
-      btn.addEventListener("mousedown", e => { e.preventDefault(); keys[key] = true; });
-      btn.addEventListener("mouseup", e => { e.preventDefault(); keys[key] = false; });
-      btn.addEventListener("touchstart", e => { e.preventDefault(); keys[key] = true; });
-      btn.addEventListener("touchend", e => { e.preventDefault(); keys[key] = false; });
-    }
-    addTouchControl("btnUp","ArrowUp");
-    addTouchControl("btnDown","ArrowDown");
-    addTouchControl("btnLeft","ArrowLeft");
-    addTouchControl("btnRight","ArrowRight");
-
-    const joystick = document.getElementById("joystick");
-    const stick = document.getElementById("stick");
-    let joyActive = false;
-
-    joystick.addEventListener("touchstart", e => { joyActive = true; });
-    joystick.addEventListener("touchend", e => { 
-      joyActive = false; 
-      stick.style.left = "40px";
-      stick.style.top = "40px";
-      keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false };
+// Generador de niveles
+const levels=[];
+for(let i=1;i<=20;i++){
+  let walls=[], enemies=[];
+  for(let j=0;j<i+2;j++){
+    walls.push({x:(Math.random()*800)|0, y:(Math.random()*500)|0, w:20, h:100});
+  }
+  for(let k=0;k<i;k++){
+    enemies.push({
+      x:200 + (Math.random()*600)|0,
+      y:200 + (Math.random()*400)|0,
+      w:25, h:25,
+      dx:(Math.random()<0.5?1:-1)*(2+i/5),
+      dy:(Math.random()<0.5?1:-1)*(2+i/5)
     });
-    joystick.addEventListener("touchmove", e => {
-      if (!joyActive) return;
-      const rect = joystick.getBoundingClientRect();
-      const touch = e.touches[0];
-      const x = touch.clientX - rect.left - 70;
-      const y = touch.clientY - rect.top - 70;
+  }
+  levels.push({walls,enemies});
+}
 
-      stick.style.left = (70 + x/2 - 30) + "px";
-      stick.style.top = (70 + y/2 - 30) + "px";
+function loadLevel(lv){
+  document.getElementById("nivel").textContent = "Nivel: "+lv;
+  walls = levels[lv-1].walls;
+  enemies = levels[lv-1].enemies.map(e=>({...e}));
+  player.x = base.x + base.w/2;
+  player.y = base.y + base.h/2;
+  resetKeys();
+}
 
-      keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false };
-      if (y < -20) keys.ArrowUp = true;
-      if (y > 20) keys.ArrowDown = true;
-      if (x < -20) keys.ArrowLeft = true;
-      if (x > 20) keys.ArrowRight = true;
-    });
+function drawRect(obj,color){ ctx.fillStyle=color; ctx.fillRect(obj.x,obj.y,obj.w||obj.size,obj.h||obj.size); }
+function checkCollision(a,b){
+  return a.x<b.x+(b.w||b.size) &&
+         a.x+(a.w||a.size)>b.x &&
+         a.y<b.y+(b.h||b.size) &&
+         a.y+(a.h||a.size)>b.y;
+}
 
-    loadLevel(level);
-    gameLoop();
-  </script>
+function resetGame(){ level=1; lives=3; loadLevel(level); startTime=Date.now(); resetKeys(); }
+
+function update(){
+  if(keys.w) player.y -= player.speed;
+  if(keys.s) player.y += player.speed;
+  if(keys.a) player.x -= player.speed;
+  if(keys.d) player.x += player.speed;
+
+  if(player.x<0) player.x=0;
+  if(player.y<0) player.y=0;
+  if(player.x+player.size>canvas.width) player.x=canvas.width-player.size;
+  if(player.y+player.size>canvas.height) player.y=canvas.height-player.size;
+
+  for(let w of walls){
+    if(checkCollision(player,w)){
+      if(keys.w) player.y+=player.speed;
+      if(keys.s) player.y-=player.speed;
+      if(keys.a) player.x+=player.speed;
+      if(keys.d) player.x-=player.speed;
+      playSound(soundBump);
+    }
+  }
+
+  for(let e of enemies){
+    const prevX=e.x, prevY=e.y;
+    e.x+=e.dx; e.y+=e.dy;
+    if(e.x<=0||e.x+e.w>=canvas.width) e.dx*=-1;
+    if(e.y<=0||e.y+e.h>=canvas.height) e.dy*=-1;
+
+    if(checkCollision(e,base)){
+      if(prevX+e.w<=base.x) e.dx=-Math.abs(e.dx);
+      if(prevX>=base.x+base.w) e.dx=Math.abs(e.dx);
+      if(prevY+e.h<=base.y) e.dy=-Math.abs(e.dy);
+      if(prevY>=base.y+base.h) e.dy=Math.abs(e.dy);
+      while(checkCollision(e,base)){ e.x+=e.dx*0.1; e.y+=e.dy*0.1; }
+    }
+
+    if(checkCollision(player,e) && !checkCollision(player,base)){
+      lives--;
+      resetKeys();
+      playSound(soundLose);
+      if(lives<=0){ alert("💀 Te quedaste sin vidas! Reiniciando desde el Nivel 1..."); resetGame(); return; }
+      else{ alert("💥 Perdiste una vida! Vidas restantes: "+lives); loadLevel(level); return; }
+    }
+  }
+
+  if(checkCollision(player,goal)){
+    if(level<levels.length){ playSound(soundWin); level++; loadLevel(level); }
+    else{
+      let tiempoTotal=Math.floor((Date.now()-startTime)/1000);
+      playSound(soundFinish);
+      alert("🎉 ¡Ganaste todos los niveles! Tiempo total: "+tiempoTotal+"s");
+      if(!mejorTiempo || tiempoTotal<mejorTiempo){ mejorTiempo=tiempoTotal; localStorage.setItem("mejorTiempo",mejorTiempo);}
+      resetGame();
+    }
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawRect(base,base.color);
+  drawRect(goal,goal.color);
+  drawRect(player,player.color);
+  for(let w of walls) drawRect(w,"gray");
+  for(let e of enemies) drawRect(e,"yellow");
+}
+
+function gameLoop(){ update(); draw(); requestAnimationFrame(gameLoop); }
+
+// Teclado W A S D
+document.addEventListener("keydown", e => {
+  const k=e.key.toLowerCase();
+  if(keys.hasOwnProperty(k)){ keys[k]=true; e.preventDefault(); }
+});
+document.addEventListener("keyup", e => {
+  const k=e.key.toLowerCase();
+  if(keys.hasOwnProperty(k)) keys[k]=false;
+});
+
+// Botones táctiles
+function addTouchControl(id,key){
+  const btn=document.getElementById(id);
+  btn.addEventListener("touchstart",e=>{ e.preventDefault(); keys[key]=true; });
+  btn.addEventListener("touchend",e=>{ e.preventDefault(); keys[key]=false; });
+}
+addTouchControl("btnUp","w");
+addTouchControl("btnDown","s");
+addTouchControl("btnLeft","a");
+addTouchControl("btnRight","d");
+
+loadLevel(level);
+gameLoop();
+</script>
 </body>
 </html>
+
+
 
