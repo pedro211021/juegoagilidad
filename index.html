@@ -11,10 +11,7 @@
       text-align: center;
       margin: 0;
     }
-    h1 {
-      margin: 10px;
-      color: yellow;
-    }
+    h1 { margin: 10px; color: yellow; }
     canvas {
       background: #222;
       display: block;
@@ -28,21 +25,21 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 15px;
+      gap: 20px;
     }
     .controls-row {
       display: flex;
-      gap: 20px;
+      gap: 30px;
     }
     .controls button {
-      width: 90px;
-      height: 90px;
-      font-size: 36px;
+      width: 120px;
+      height: 120px;
+      font-size: 45px;
       border-radius: 50%;
       border: none;
       background: #444;
       color: white;
-      box-shadow: 0px 4px 8px rgba(0,0,0,0.5);
+      box-shadow: 0px 6px 12px rgba(0,0,0,0.6);
       transition: transform 0.1s, background 0.2s;
     }
     .controls button:active {
@@ -55,6 +52,13 @@
       border: 2px solid yellow;
       display: inline-block;
       font-size: 18px;
+    }
+    #mensaje {
+      margin-top: 15px;
+      padding: 10px;
+      font-size: 20px;
+      font-weight: bold;
+      color: cyan;
     }
   </style>
 </head>
@@ -79,9 +83,20 @@
     <p id="mejorTiempo">Mejor tiempo: -</p>
   </div>
 
+  <div id="mensaje"></div>
+
+  <!-- 🎵 sonidos -->
+  <audio id="sndMuerte" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+  <audio id="sndReinicio" src="https://actions.google.com/sounds/v1/cartoon/concussive_drum_hit.ogg"></audio>
+  <audio id="sndVictoria" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
+
+    const sndMuerte = document.getElementById("sndMuerte");
+    const sndReinicio = document.getElementById("sndReinicio");
+    const sndVictoria = document.getElementById("sndVictoria");
 
     const player = { x: 20, y: 20, size: 25, color: "cyan", speed: 4 };
     const goal = { x: 850, y: 550, size: 35, color: "red" };
@@ -91,7 +106,7 @@
     let keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     let walls = [];
     let enemies = [];
-    let base = { x: 10, y: 10, w: 100, h: 100, color: "green" };
+    let base = { x: 10, y: 10, w: 120, h: 120, color: "green" };
 
     // 🕒 tiempo
     let startTime = Date.now();
@@ -107,34 +122,24 @@
     }
     setInterval(actualizarTiempo, 1000);
 
-    // 📦 Generador de niveles
     const levels = [];
     for (let i = 1; i <= 20; i++) {
       let walls = [];
       let enemies = [];
-
-      // paredes simples, aumentan dificultad
+      // 🔹 columnas más pequeñas
       for (let j = 0; j < i + 2; j++) {
-        walls.push({
-          x: 150 + Math.random() * 700 | 0,
-          y: 100 + Math.random() * 400 | 0,
-          w: 40,
-          h: 100
-        });
+        walls.push({ x: 150 + Math.random() * 700 | 0, y: 100 + Math.random() * 400 | 0, w: 30, h: 80 });
       }
-
-      // enemigos
+      // 🔹 enemigos
       for (let k = 0; k < i; k++) {
         enemies.push({
           x: 200 + Math.random() * 600 | 0,
           y: 150 + Math.random() * 350 | 0,
-          w: 25,
-          h: 25,
+          w: 25, h: 25,
           dx: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5),
           dy: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5)
         });
       }
-
       levels.push({ walls, enemies });
     }
 
@@ -159,16 +164,21 @@
              a.y + (a.h || a.size) > b.y;
     }
 
-    function resetKeys() {
-      for (let k in keys) keys[k] = false;
-    }
+    function resetKeys() { for (let k in keys) keys[k] = false; }
 
     function resetGame() {
-      level = 1;
-      lives = 3;
-      resetKeys();
+      level = 1; lives = 3; resetKeys();
       loadLevel(level);
       startTime = Date.now();
+      showMessage("🔄 Juego reiniciado", "cyan");
+      sndReinicio.play();
+    }
+
+    function showMessage(txt, color="yellow") {
+      let box = document.getElementById("mensaje");
+      box.textContent = txt;
+      box.style.color = color;
+      setTimeout(()=> box.textContent = "", 3000);
     }
 
     function update() {
@@ -177,13 +187,11 @@
       if (keys.ArrowLeft) player.x -= player.speed;
       if (keys.ArrowRight) player.x += player.speed;
 
-      // 🔒 Limite canvas
       if (player.x < 0) player.x = 0;
       if (player.y < 0) player.y = 0;
       if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
       if (player.y + player.size > canvas.height) player.y = canvas.height - player.size;
 
-      // Colisiones paredes
       for (let w of walls) {
         if (checkCollision(player, w)) {
           if (keys.ArrowUp) player.y += player.speed;
@@ -193,21 +201,31 @@
         }
       }
 
-      // Movimiento enemigos
       for (let e of enemies) {
-        e.x += e.dx;
-        e.y += e.dy;
+        e.x += e.dx; e.y += e.dy;
         if (e.x <= 0 || e.x + e.w >= canvas.width) e.dx *= -1;
         if (e.y <= 0 || e.y + e.h >= canvas.height) e.dy *= -1;
-        if (checkCollision(player, e)) {
+
+        // 🚫 impedir que los enemigos entren a la base
+        if (checkCollision(e, base)) {
+          if (e.x < base.x || e.x + e.w > base.x + base.w) e.dx *= -1;
+          if (e.y < base.y || e.y + e.h > base.y + base.h) e.dy *= -1;
+          e.x += e.dx * 2;
+          e.y += e.dy * 2;
+        }
+
+        // ⚠️ colisión mortal solo fuera de la base
+        if (checkCollision(player, e) && !checkCollision(player, base)) {
           lives--;
           if (lives > 0) {
-            alert("💀 Moriste! Te quedan " + lives + " vidas.");
+            showMessage("💀 Moriste! Vidas: " + lives, "red");
+            sndMuerte.play();
             resetKeys();
             loadLevel(level);
           } else {
-            alert("💀 Te quedaste sin vidas. Reiniciando...");
-            resetGame();
+            showMessage("☠️ Sin vidas, reiniciando...", "red");
+            sndMuerte.play();
+            setTimeout(resetGame, 1500);
           }
           return;
         }
@@ -216,15 +234,18 @@
       if (checkCollision(player, goal)) {
         if (level < levels.length) {
           level++;
+          showMessage("✅ Nivel " + level + " alcanzado", "lime");
+          sndVictoria.play();
           loadLevel(level);
         } else {
           let tiempoTotal = Math.floor((Date.now() - startTime) / 1000);
-          alert("🎉 ¡Ganaste todos los niveles! Tiempo total: " + tiempoTotal + "s");
+          showMessage("🏆 ¡Ganaste en " + tiempoTotal + "s!", "gold");
+          sndVictoria.play();
           if (!mejorTiempo || tiempoTotal < mejorTiempo) {
             mejorTiempo = tiempoTotal;
             localStorage.setItem("mejorTiempo", mejorTiempo);
           }
-          resetGame();
+          setTimeout(resetGame, 3000);
         }
       }
     }
@@ -238,21 +259,15 @@
       for (let e of enemies) drawRect(e, "yellow");
     }
 
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 
     document.addEventListener("keydown", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
     document.addEventListener("keyup", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
 
     function addControl(id, key) {
       const btn = document.getElementById(id);
-      // Soporte móvil (táctil)
       btn.addEventListener("touchstart", e => { e.preventDefault(); keys[key] = true; });
       btn.addEventListener("touchend", e => { e.preventDefault(); keys[key] = false; });
-      // Soporte PC (click con ratón)
       btn.addEventListener("mousedown", e => { e.preventDefault(); keys[key] = true; });
       btn.addEventListener("mouseup", e => { e.preventDefault(); keys[key] = false; });
       btn.addEventListener("mouseleave", e => { e.preventDefault(); keys[key] = false; });
@@ -267,6 +282,7 @@
   </script>
 </body>
 </html>
+
 
 
 
