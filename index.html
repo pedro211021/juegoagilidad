@@ -1,107 +1,75 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Llega a la puerta segura - 20 Niveles</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Escape del Laberinto - 20 Niveles</title>
   <style>
-    :root {
-      --btn-size-desktop: 60px;
-      --btn-size-mobile: 90px;
-    }
     body {
       background: #111;
-      color: #fff;
-      font-family: Arial, Helvetica, sans-serif;
+      color: white;
+      font-family: Arial, sans-serif;
       text-align: center;
       margin: 0;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation; /* reduce gestos extraños en móvil */
     }
-    h1 { margin: 10px; color: #ff0; }
-    h2 { margin: 2px 0; font-weight: normal; }
-
-    /* Lienzo */
+    h1 {
+      margin: 10px;
+      color: yellow;
+    }
     canvas {
       background: #222;
       display: block;
-      margin: 10px auto;
-      border: 3px solid #fff;
-      border-radius: 10px;
-      max-width: 98vw; /* para que nunca se salga en móviles pequeños */
-      height: auto;    /* mantiene proporción */
+      margin: auto;
+      border: 3px solid white;
+      max-width: 95vw;
     }
-
-    /* Controles */
-    .controls { margin-top: 10px; text-align: center; }
-    .controls .row { display: flex; justify-content: center; align-items: center; }
+    .controls {
+      margin-top: 25px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+    .controls-row {
+      display: flex;
+      gap: 20px;
+    }
     .controls button {
-      width: var(--btn-size-desktop);
-      height: var(--btn-size-desktop);
-      margin: 6px;
-      font-size: 24px;
-      border-radius: 12px;
+      width: 90px;
+      height: 90px;
+      font-size: 36px;
+      border-radius: 50%;
       border: none;
       background: #444;
-      color: #fff;
-      box-shadow: 0 4px 8px rgba(0,0,0,.4);
-      cursor: pointer;
-      transition: transform .08s ease;
-      user-select: none;
+      color: white;
+      box-shadow: 0px 4px 8px rgba(0,0,0,0.5);
+      transition: transform 0.1s, background 0.2s;
     }
-    .controls button:active { background: #888; transform: scale(.96); }
-
-    /* Ranking */
+    .controls button:active {
+      background: #888;
+      transform: scale(0.9);
+    }
     #ranking {
-      margin: 16px auto 28px;
-      padding: 12px 16px;
-      border: 2px solid #ffd500;
-      border-radius: 10px;
+      margin-top: 20px;
+      padding: 10px;
+      border: 2px solid yellow;
       display: inline-block;
-      background: rgba(255, 213, 0, .06);
-    }
-
-    /* Overlay de mensajes (opcional, no bloquea) */
-    #msg {
-      position: fixed;
-      left: 50%; top: 14%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,.8);
-      padding: 10px 16px;
-      border-radius: 10px;
-      color: #fff;
-      font-size: 16px;
-      display: none;
-      z-index: 10;
-      border: 1px solid #555;
-    }
-
-    /* 📱 Responsivo móvil */
-    @media (max-width: 768px) {
-      .controls { margin-top: 18px; }
-      .controls button {
-        width: var(--btn-size-mobile);
-        height: var(--btn-size-mobile);
-        font-size: 36px;
-        margin: 10px;
-      }
-      #ranking { font-size: 18px; padding: 14px 18px; }
+      font-size: 18px;
     }
   </style>
 </head>
 <body>
-  <h1>⚡ Llega a la puerta segura - 20 Niveles</h1>
+  <h1>⚡ Escape del Laberinto - 20 Niveles</h1>
   <h2 id="nivel">Nivel: 1</h2>
-  <h2 id="vidas">Vidas: 3</h2>
-
+  <h3 id="vidas">Vidas: 3</h3>
   <canvas id="gameCanvas" width="900" height="600"></canvas>
 
-  <div class="controls" aria-label="Controles táctiles">
-    <div class="row"><button id="btnUp" aria-label="Arriba">⬆️</button></div>
-    <div class="row">
-      <button id="btnLeft" aria-label="Izquierda">⬅️</button>
-      <button id="btnDown" aria-label="Abajo">⬇️</button>
-      <button id="btnRight" aria-label="Derecha">➡️</button>
+  <div class="controls">
+    <div><button id="btnUp">⬆️</button></div>
+    <div class="controls-row">
+      <button id="btnLeft">⬅️</button>
+      <button id="btnDown">⬇️</button>
+      <button id="btnRight">➡️</button>
     </div>
   </div>
 
@@ -111,309 +79,194 @@
     <p id="mejorTiempo">Mejor tiempo: -</p>
   </div>
 
-  <div id="msg"></div>
-
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const CW = canvas.width, CH = canvas.height;
 
-    // 🟩 Base segura
-    const START_BASE = { x: 10, y: 10, w: 160, h: 130 };
-    const BASE_BUFFER = 25; // margen extra para spawns
-    const BASE_NO_SPAWN = expand(START_BASE, BASE_BUFFER);
+    const player = { x: 20, y: 20, size: 25, color: "cyan", speed: 4 };
+    const goal = { x: 850, y: 550, size: 35, color: "red" };
 
-    // Jugador y meta
-    const player = { x: 0, y: 0, size: 25, color: "cyan", speed: 4 };
-    const goal   = { x: CW - 50, y: CH - 50, size: 35, color: "red" };
-
-    // Estado
     let level = 1;
-    let vidas = 3;
-    let invulnerableUntil = 0;
-
-    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    let lives = 3;
+    let keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     let walls = [];
     let enemies = [];
+    let base = { x: 10, y: 10, w: 100, h: 100, color: "green" };
 
-    // ⏱️ Tiempo / ranking
+    // 🕒 tiempo
     let startTime = Date.now();
     let tiempoActual = 0;
-    let mejorTiempo = Number(localStorage.getItem("mejorTiempo") || 0) || null;
+    let mejorTiempo = localStorage.getItem("mejorTiempo") || null;
 
-    setInterval(() => {
+    function actualizarTiempo() {
       tiempoActual = Math.floor((Date.now() - startTime) / 1000);
       document.getElementById("tiempoActual").textContent = "Tiempo actual: " + tiempoActual + "s";
-      document.getElementById("mejorTiempo").textContent = "Mejor tiempo: " + (mejorTiempo ?? "-") + (mejorTiempo ? "s" : "");
-    }, 1000);
-
-    /* ---------- Utilidades ---------- */
-    function rect(x,y,w,h){ return {x,y,w,h}; }
-    function expand(r, pad){ return { x: r.x - pad, y: r.y - pad, w: r.w + pad*2, h: r.h + pad*2 }; }
-    function intersects(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
-    function aabb(o){ return { x:o.x, y:o.y, w:o.w||o.size, h:o.h||o.size }; }
-    function randomInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-
-    function showMsg(text, ms=1400){
-      const el = document.getElementById("msg");
-      el.textContent = text;
-      el.style.display = "block";
-      clearTimeout(el._t);
-      el._t = setTimeout(()=> el.style.display="none", ms);
+      if (mejorTiempo) {
+        document.getElementById("mejorTiempo").textContent = "Mejor tiempo: " + mejorTiempo + "s";
+      }
     }
+    setInterval(actualizarTiempo, 1000);
 
-    function resetKeys(){
-      for (const k in keys) keys[k] = false;
-    }
-
-    /* ---------- Generador de niveles (paredes separadas + enemigos fuera de la base) ---------- */
+    // 📦 Generador de niveles
     const levels = [];
     for (let i = 1; i <= 20; i++) {
-      const wallsLv = [];
-      const enemiesLv = [];
+      let walls = [];
+      let enemies = [];
 
-      const wallCount = Math.min(6 + i * 2, 42);
-      const lenMin = i < 6 ? 50 : i < 12 ? 80 : 120;
-      const lenMax = i < 6 ? 110 : i < 12 ? 150 : 210;
-
-      let tries = 0;
-      while (wallsLv.length < wallCount && tries < wallCount * 30) {
-        tries++;
-        const horiz = Math.random() < 0.5;
-        const len = randomInt(lenMin, lenMax);
-        const w = horiz ? len : 20;
-        const h = horiz ? 20 : len;
-
-        const x = randomInt(40, CW - w - 40);
-        const y = randomInt(40, CH - h - 40);
-        const cand = rect(x,y,w,h);
-
-        const GAP = 14;
-        const candGap = expand(cand, GAP);
-        if (intersects(candGap, BASE_NO_SPAWN)) continue;         // no tocar la base
-        if (intersects(candGap, expand(aabb(goal), 12))) continue; // no tapar la meta
-
-        let overlap = false;
-        for (const ww of wallsLv){
-          if (intersects(candGap, ww)){ overlap = true; break; }
-        }
-        if (!overlap) wallsLv.push(cand);
-      }
-
-      const enemyCount = Math.min(i, 12);
-      for (let k = 0; k < enemyCount; k++) {
-        let ex, ey;
-        let guard = 0;
-        while (true) {
-          guard++; if (guard > 300) break;
-          const ew = 25, eh = 25;
-          ex = randomInt(40, CW - ew - 40);
-          ey = randomInt(40, CH - eh - 40);
-          const ebox = rect(ex,ey,ew,eh);
-          if (intersects(ebox, BASE_NO_SPAWN)) continue;
-
-          let hit = false;
-          for (const w of wallsLv){ if (intersects(ebox, w)) { hit = true; break; } }
-          if (!hit) break;
-        }
-        enemiesLv.push({
-          x: ex, y: ey, w: 25, h: 25,
-          dx: (Math.random()<0.5?-1:1)*(2 + i/5),
-          dy: (Math.random()<0.5?-1:1)*(2 + i/5)
+      // paredes simples, aumentan dificultad
+      for (let j = 0; j < i + 2; j++) {
+        walls.push({
+          x: 150 + Math.random() * 700 | 0,
+          y: 100 + Math.random() * 400 | 0,
+          w: 40,
+          h: 100
         });
       }
-      levels.push({ walls: wallsLv, enemies: enemiesLv });
-    }
 
-    /* ---------- Carga / reinicio ---------- */
-    function placePlayerAtBaseCenter(){
-      player.x = START_BASE.x + (START_BASE.w - player.size)/2;
-      player.y = START_BASE.y + (START_BASE.h - player.size)/2;
-    }
-
-    function loadLevel(lv){
-      document.getElementById("nivel").textContent = "Nivel: " + lv;
-      document.getElementById("vidas").textContent = "Vidas: " + vidas;
-
-      walls = levels[lv-1].walls.map(w=>({...w}));
-      enemies = levels[lv-1].enemies.map(e=>({...e}));
-
-      placePlayerAtBaseCenter();
-      invulnerableUntil = Date.now() + 1500; // 1.5s protección
-      resetKeys(); // evita “tecla pegada” al entrar al nivel
-    }
-
-    function resetGame(){
-      level = 1;
-      vidas = 3;
-      startTime = Date.now();
-      loadLevel(level);
-      resetKeys();
-    }
-
-    function handleDeath(){
-      vidas--;
-      resetKeys(); // 🔑 soltar cualquier tecla activa
-      if (vidas > 0) {
-        showMsg("💥 Perdiste una vida. Vidas: " + vidas, 1200);
-        loadLevel(level); // mismo nivel
-      } else {
-        showMsg("💀 Sin vidas. Reiniciando…", 1200);
-        resetGame();
+      // enemigos
+      for (let k = 0; k < i; k++) {
+        enemies.push({
+          x: 200 + Math.random() * 600 | 0,
+          y: 150 + Math.random() * 350 | 0,
+          w: 25,
+          h: 25,
+          dx: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5),
+          dy: (Math.random() < 0.5 ? 1 : -1) * (2 + i/5)
+        });
       }
+
+      levels.push({ walls, enemies });
     }
 
-    /* ---------- Bucle ---------- */
-    function update(){
-      // Movimiento jugador con previsión de colisiones
-      let nx = player.x, ny = player.y;
-      if (keys.ArrowUp)    ny -= player.speed;
-      if (keys.ArrowDown)  ny += player.speed;
-      if (keys.ArrowLeft)  nx -= player.speed;
-      if (keys.ArrowRight) nx += player.speed;
+    function loadLevel(lv) {
+      document.getElementById("nivel").textContent = "Nivel: " + lv;
+      document.getElementById("vidas").textContent = "Vidas: " + lives;
+      walls = levels[lv-1].walls;
+      enemies = levels[lv-1].enemies.map(e => ({...e}));
+      player.x = base.x + 20;
+      player.y = base.y + 20;
+    }
 
-      // Límites del lienzo
-      nx = Math.max(0, Math.min(CW - player.size, nx));
-      ny = Math.max(0, Math.min(CH - player.size, ny));
+    function drawRect(obj, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(obj.x, obj.y, obj.w || obj.size, obj.h || obj.size);
+    }
 
-      // Bloqueo por paredes
-      const nextBox = rect(nx, ny, player.size, player.size);
-      let blocked = false;
-      for (const w of walls){ if (intersects(nextBox, w)) { blocked = true; break; } }
-      if (!blocked){ player.x = nx; player.y = ny; }
+    function checkCollision(a, b) {
+      return a.x < b.x + (b.w || b.size) &&
+             a.x + (a.w || a.size) > b.x &&
+             a.y < b.y + (b.h || b.size) &&
+             a.y + (a.h || a.size) > b.y;
+    }
 
-      // Enemigos movimiento y rebote
-      for (const e of enemies){
-        e.x += e.dx; e.y += e.dy;
+    function resetKeys() {
+      for (let k in keys) keys[k] = false;
+    }
 
-        if (e.x <= 0 || e.x + e.w >= CW) e.dx *= -1;
-        if (e.y <= 0 || e.y + e.h >= CH) e.dy *= -1;
+    function resetGame() {
+      level = 1;
+      lives = 3;
+      resetKeys();
+      loadLevel(level);
+      startTime = Date.now();
+    }
 
-        const eb = rect(e.x, e.y, e.w, e.h);
-        // rebote con paredes
-        for (const w of walls){
-          if (intersects(eb, w)){
-            const overlapX = Math.min(eb.x + eb.w, w.x + w.w) - Math.max(eb.x, w.x);
-            const overlapY = Math.min(eb.y + eb.h, w.y + w.h) - Math.max(eb.y, w.y);
-            if (overlapX < overlapY){ e.dx *= -1; e.x += Math.sign(e.dx) * 2; }
-            else { e.dy *= -1; e.y += Math.sign(e.dy) * 2; }
+    function update() {
+      if (keys.ArrowUp) player.y -= player.speed;
+      if (keys.ArrowDown) player.y += player.speed;
+      if (keys.ArrowLeft) player.x -= player.speed;
+      if (keys.ArrowRight) player.x += player.speed;
+
+      // 🔒 Limite canvas
+      if (player.x < 0) player.x = 0;
+      if (player.y < 0) player.y = 0;
+      if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
+      if (player.y + player.size > canvas.height) player.y = canvas.height - player.size;
+
+      // Colisiones paredes
+      for (let w of walls) {
+        if (checkCollision(player, w)) {
+          if (keys.ArrowUp) player.y += player.speed;
+          if (keys.ArrowDown) player.y -= player.speed;
+          if (keys.ArrowLeft) player.x += player.speed;
+          if (keys.ArrowRight) player.x -= player.speed;
+        }
+      }
+
+      // Movimiento enemigos
+      for (let e of enemies) {
+        e.x += e.dx;
+        e.y += e.dy;
+        if (e.x <= 0 || e.x + e.w >= canvas.width) e.dx *= -1;
+        if (e.y <= 0 || e.y + e.h >= canvas.height) e.dy *= -1;
+        if (checkCollision(player, e)) {
+          lives--;
+          if (lives > 0) {
+            alert("💀 Moriste! Te quedan " + lives + " vidas.");
+            resetKeys();
+            loadLevel(level);
+          } else {
+            alert("💀 Te quedaste sin vidas. Reiniciando...");
+            resetGame();
           }
-        }
-        // enemigos no entran a la base
-        if (intersects(eb, START_BASE)){
-          const ox = Math.min(eb.x + eb.w, START_BASE.x + START_BASE.w) - Math.max(eb.x, START_BASE.x);
-          const oy = Math.min(eb.y + eb.h, START_BASE.y + START_BASE.h) - Math.max(eb.y, START_BASE.y);
-          if (ox < oy){ e.dx *= -1; e.x += Math.sign(e.dx) * 3; }
-          else { e.dy *= -1; e.y += Math.sign(e.dy) * 3; }
-        }
-
-        // Colisión con jugador (si no está invulnerable)
-        if (Date.now() >= invulnerableUntil && intersects(aabb(player), eb)){
-          handleDeath();
           return;
         }
       }
 
-      // Meta alcanzada
-      if (intersects(aabb(player), aabb(goal))){
-        if (level < levels.length){
+      if (checkCollision(player, goal)) {
+        if (level < levels.length) {
           level++;
-          showMsg("✅ Nivel " + (level-1) + " superado");
           loadLevel(level);
         } else {
-          const total = Math.floor((Date.now() - startTime)/1000);
-          showMsg("🎉 ¡Ganaste! Tiempo total: " + total + "s", 2200);
-          if (!mejorTiempo || total < mejorTiempo){
-            mejorTiempo = total;
-            localStorage.setItem("mejorTiempo", String(mejorTiempo));
+          let tiempoTotal = Math.floor((Date.now() - startTime) / 1000);
+          alert("🎉 ¡Ganaste todos los niveles! Tiempo total: " + tiempoTotal + "s");
+          if (!mejorTiempo || tiempoTotal < mejorTiempo) {
+            mejorTiempo = tiempoTotal;
+            localStorage.setItem("mejorTiempo", mejorTiempo);
           }
           resetGame();
         }
       }
     }
 
-    function draw(){
-      ctx.clearRect(0,0,CW,CH);
-
-      // Base segura
-      ctx.fillStyle = "rgba(0,255,0,0.12)";
-      ctx.fillRect(START_BASE.x, START_BASE.y, START_BASE.w, START_BASE.h);
-      ctx.strokeStyle = "lime";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(START_BASE.x, START_BASE.y, START_BASE.w, START_BASE.h);
-      ctx.fillStyle = "lime";
-      ctx.font = "14px Arial";
-      ctx.fillText("BASE", START_BASE.x + 8, START_BASE.y + 18);
-
-      // Meta (puerta roja)
-      ctx.fillStyle = goal.color;
-      ctx.fillRect(goal.x, goal.y, goal.size, goal.size);
-
-      // Jugador
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x, player.y, player.size, player.size);
-
-      // Halo invulnerabilidad
-      if (Date.now() < invulnerableUntil){
-        ctx.strokeStyle = "cyan";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(player.x - 3, player.y - 3, player.size + 6, player.size + 6);
-      }
-
-      // Paredes
-      ctx.fillStyle = "gray";
-      for (const w of walls) ctx.fillRect(w.x, w.y, w.w, w.h);
-
-      // Enemigos
-      ctx.fillStyle = "yellow";
-      for (const e of enemies) ctx.fillRect(e.x, e.y, e.w, e.h);
+    function draw() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawRect(base, base.color);
+      drawRect(goal, goal.color);
+      drawRect(player, player.color);
+      for (let w of walls) drawRect(w, "gray");
+      for (let e of enemies) drawRect(e, "yellow");
     }
 
-    function loop(){
+    function gameLoop() {
       update();
       draw();
-      requestAnimationFrame(loop);
+      requestAnimationFrame(gameLoop);
     }
 
-    /* ---------- Controles ---------- */
-    document.addEventListener("keydown", e => {
-      if (e.key in keys){ keys[e.key] = true; }
-    });
-    document.addEventListener("keyup", e => {
-      if (e.key in keys){ keys[e.key] = false; }
-    });
+    document.addEventListener("keydown", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+    document.addEventListener("keyup", e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
 
-    // Reset de teclas en pérdida de foco/visibilidad (evita “tecla pegada”)
-    window.addEventListener("blur", resetKeys);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) resetKeys(); });
-
-    function bindBtn(btnId, key){
-      const btn = document.getElementById(btnId);
-      const on = e => { e.preventDefault(); keys[key] = true; };
-      const off = e => { e.preventDefault(); keys[key] = false; };
-      ["mousedown","touchstart"].forEach(ev => btn.addEventListener(ev, on, {passive:false}));
-      ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev => btn.addEventListener(ev, off, {passive:false}));
+    function addControl(id, key) {
+      const btn = document.getElementById(id);
+      // Soporte móvil (táctil)
+      btn.addEventListener("touchstart", e => { e.preventDefault(); keys[key] = true; });
+      btn.addEventListener("touchend", e => { e.preventDefault(); keys[key] = false; });
+      // Soporte PC (click con ratón)
+      btn.addEventListener("mousedown", e => { e.preventDefault(); keys[key] = true; });
+      btn.addEventListener("mouseup", e => { e.preventDefault(); keys[key] = false; });
+      btn.addEventListener("mouseleave", e => { e.preventDefault(); keys[key] = false; });
     }
-    bindBtn("btnUp","ArrowUp");
-    bindBtn("btnDown","ArrowDown");
-    bindBtn("btnLeft","ArrowLeft");
-    bindBtn("btnRight","ArrowRight");
+    addControl("btnUp","ArrowUp");
+    addControl("btnDown","ArrowDown");
+    addControl("btnLeft","ArrowLeft");
+    addControl("btnRight","ArrowRight");
 
-    // También si el usuario suelta el dedo/click fuera del botón
-    ["mouseup","touchend","touchcancel"].forEach(ev =>
-      document.addEventListener(ev, resetKeys, {passive:false})
-    );
-
-    /* ---------- Inicio ---------- */
-    function init(){
-      // colocar jugador en base
-      placePlayerAtBaseCenter();
-      loadLevel(level);
-      startTime = Date.now();
-      loop();
-    }
-    init();
+    loadLevel(level);
+    gameLoop();
   </script>
 </body>
 </html>
+
+
 
