@@ -34,6 +34,7 @@
 <body>
   <h1>⚡ llega a la puerta segura - 20 Niveles</h1>
   <h2 id="nivel">Nivel: 1</h2>
+  <h2 id="vidas">Vidas: 3</h2>
   <canvas id="gameCanvas" width="900" height="600"></canvas>
 
   <div class="controls">
@@ -64,6 +65,7 @@
     const goal = { x: CW - 50, y: CH - 50, size: 35, color: "red" };
 
     let level = 1;
+    let vidas = 3; // 🆕 vidas
     let keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     let walls = [];
     let enemies = [];
@@ -172,6 +174,7 @@
 
     function loadLevel(lv) {
       document.getElementById("nivel").textContent = "Nivel: " + lv;
+      document.getElementById("vidas").textContent = "Vidas: " + vidas; // 🆕 mostrar vidas
       walls = levels[lv-1].walls.map(w => ({...w}));
       enemies = levels[lv-1].enemies.map(e => ({...e}));
       // respawn dentro de la base
@@ -198,6 +201,7 @@
 
     function resetGame() {
       level = 1;
+      vidas = 3; // 🆕 reiniciar vidas
       loadLevel(level);
       startTime = Date.now();
       keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
@@ -233,7 +237,6 @@
         const ebox = rect(e.x, e.y, e.w, e.h);
         for (const w of walls) {
           if (intersects(ebox, w)) {
-            // decide eje de rebote según penetración
             const overlapX = Math.min(ebox.x + ebox.w, w.x + w.w) - Math.max(ebox.x, w.x);
             const overlapY = Math.min(ebox.y + ebox.h, w.y + w.h) - Math.max(ebox.y, w.y);
             if (overlapX < overlapY) { e.dx *= -1; e.x += Math.sign(e.dx) * 2; }
@@ -241,7 +244,7 @@
           }
         }
 
-        // 🚫 enemigos no entran a la base: si tocan, rebotan
+        // 🚫 enemigos no entran a la base
         if (intersects(ebox, START_BASE)) {
           const overlapX = Math.min(ebox.x + ebox.w, START_BASE.x + START_BASE.w) - Math.max(ebox.x, START_BASE.x);
           const overlapY = Math.min(ebox.y + ebox.h, START_BASE.y + START_BASE.h) - Math.max(ebox.y, START_BASE.y);
@@ -249,11 +252,17 @@
           else { e.dy *= -1; e.y += Math.sign(e.dy) * 3; }
         }
 
-        // colisión con jugador (si no está invulnerable)
+        // colisión con jugador
         const vulnerable = Date.now() >= invulnerableUntil;
         if (vulnerable && checkCollision(player, e)) {
-          alert("💀 Moriste! Reiniciando desde el Nivel 1...");
-          resetGame();
+          vidas--;
+          if (vidas > 0) {
+            alert("💥 Perdiste una vida. Vidas restantes: " + vidas);
+            loadLevel(level); // respawn mismo nivel
+          } else {
+            alert("💀 Te quedaste sin vidas. Reiniciando desde el Nivel 1...");
+            resetGame();
+          }
           return;
         }
       }
@@ -292,7 +301,7 @@
       drawRect(goal, goal.color);
       drawRect(player, player.color);
 
-      // halo de invulnerabilidad
+      // halo invulnerabilidad
       if (Date.now() < invulnerableUntil) {
         ctx.strokeStyle = "cyan";
         ctx.lineWidth = 2;
@@ -335,3 +344,4 @@
   </script>
 </body>
 </html>
+
